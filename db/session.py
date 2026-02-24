@@ -2,7 +2,10 @@
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
 import os
+
+load_dotenv()
 
 DATABASE_URL = "DATABASE_URL", "postgresql://postgres:password@localhost:5432/everwood_db"
 
