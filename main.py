@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from db.session import engine, Base, SessionLocal
 from db.base import *
 from db.seed import seed_roles, seed_super_admin
-from api import auth, users
+from api import auth, users, banners
 
 
 app = FastAPI()
@@ -19,3 +19,4 @@ def startup_event():
 
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(banners.router, prefix="/banners", tags=["Banners"])
