@@ -61,33 +61,29 @@ def create_resident(
 
     return {"message": "Resident created successfully"}
 
-@router.post("/admin")
-def create_admin(
+@router.post("/")
+def create_user(
     payload: AdminCreate,
     db: Session = Depends(get_db),
     current_user = Depends(role_required(["super_admin"]))
 ):
-    role = db.query(Role).filter(Role.name == "admin").first()
+    role = db.query(Role).filter(Role.name == payload.role).first()
 
     if not role:
-        raise HTTPException(status_code=400, detail="Admin role not found")
+        raise HTTPException(status_code=400, detail="Role not found")
 
-    existing_user = db.query(User).filter(User.email == payload.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    new_admin = User(
+    new_user = User(
         name=payload.name,
         email=payload.email,
         password=hash_password(payload.password),
         role_id=role.id
     )
 
-    db.add(new_admin)
+    db.add(new_user)
     db.commit()
-    db.refresh(new_admin)
+    db.refresh(new_user)
 
-    return {"message": "Admin created successfully"}
+    return {"message": "User created successfully"}
 
 @router.get("/", response_model=list[UserResponse])
 def get_all_user(
@@ -101,51 +97,12 @@ def get_all_user(
             id=user.id,
             name=user.name,
             email=user.email,
-            role=user.role.name
+            role=user.role.name,
+            is_active=user.is_active
         )
         for user in users
     ]
 
-@router.get("/{user_id}", response_model=UserResponse | ResidentDetailResponse)
-def get_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(role_required(["admin", "super_admin"]))
-):
-    user = db.query(User).filter(User.id == user_id).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Jika Resident → include profile
-    if user.role.name == "resident":
-        profile = db.query(ResidentProfile).filter(
-            ResidentProfile.user_id == user.id
-        ).first()
-
-        return ResidentDetailResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            role=user.role.name,
-            profile=ResidentProfileResponse(
-                address=profile.address,
-                block=profile.block,
-                phone=profile.phone,
-                total_people=profile.total_people,
-                npwp=profile.npwp,
-                ktp_number=profile.ktp_number
-            )
-        )
-
-    # Jika Admin / Super Admin
-    return UserResponse(
-        id=user.id,
-        name=user.name,
-        email=user.email,
-        role=user.role.name
-    )
-    
 @router.get("/me", response_model=UserResponse | ResidentDetailResponse)
 def get_my_profile(
     db: Session = Depends(get_db),
@@ -166,6 +123,7 @@ def get_my_profile(
             name=user.name,
             email=user.email,
             role=user.role.name,
+            is_active=user.is_active,
             profile=ResidentProfileResponse(
                 address=profile.address,
                 block=profile.block,
@@ -180,7 +138,8 @@ def get_my_profile(
         id=user.id,
         name=user.name,
         email=user.email,
-        role=user.role.name
+        role=user.role.name,
+        is_active=user.is_active
     )
     
 @router.put("/me")
@@ -238,6 +197,47 @@ def update_my_profile(
 
     return {"message": "Profile updated successfully"}
 
+@router.get("/{user_id}", response_model=UserResponse | ResidentDetailResponse)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(role_required(["admin", "super_admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Jika Resident → include profile
+    if user.role.name == "resident":
+        profile = db.query(ResidentProfile).filter(
+            ResidentProfile.user_id == user.id
+        ).first()
+
+        return ResidentDetailResponse(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=user.role.name,
+            profile=ResidentProfileResponse(
+                address=profile.address,
+                block=profile.block,
+                phone=profile.phone,
+                total_people=profile.total_people,
+                npwp=profile.npwp,
+                ktp_number=profile.ktp_number
+            )
+        )
+
+    # Jika Admin / Super Admin
+    return UserResponse(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        role=user.role.name
+    )
+    
+
 @router.put("/me/password")
 def change_my_password(
     payload: ChangePasswordRequest,
@@ -266,7 +266,7 @@ def reset_user_password(
     db: Session = Depends(get_db),
     current_user = Depends(role_required(["admin", "super_admin"]))
 ): 
-    user = db.query(User).filter(User.id == user.id).first()
+    user = db.query(User).filter(User.id == user_id).first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -305,3 +305,52 @@ def update_user_role(
     db.commit()
 
     return {"message": "Role updated successfully"}
+
+@router.put("/{user_id}")
+def update_user(
+    user_id: int,
+    payload: UpdateMyProfile,
+    db: Session = Depends(get_db),
+    current_user = Depends(role_required(["admin", "super_admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.name is not None:
+        user.name = payload.name
+
+    if payload.email is not None:
+        existing_email = db.query(User).filter(
+            User.email == payload.email,
+            User.id != user.id
+        ).first()
+
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already used")
+
+        user.email = payload.email
+
+    db.commit()
+
+    return {"message": "User updated successfully"}
+
+@router.put("/{user_id}/toggle-active")
+def toggle_user_active(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(role_required(["admin", "super_admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_active = not user.is_active
+    db.commit()
+
+    return {
+        "message": "User status updated",
+        "is_active": user.is_active
+    }

@@ -1,11 +1,25 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from db.session import engine, Base, SessionLocal
 from db.base import *
 from db.seed import seed_roles, seed_super_admin
-from api import auth, users, banners
+from api import auth, users, banners, roles
 
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:5174",
+    "http://127.0.0.1:5174"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,3 +34,4 @@ def startup_event():
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(banners.router, prefix="/banners", tags=["Banners"])
+app.include_router(roles.router, prefix="/roles", tags=["Roles"])

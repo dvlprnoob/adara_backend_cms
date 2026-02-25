@@ -10,14 +10,25 @@ from core.security import verify_password, create_access_token
 router = APIRouter()
 
 @router.post("/login")
-def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
-    user = db.query(User).filter(User.email == form_data.username).first()
+def login(email: str, password: str, device: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == email).first()
 
-    if not user or not verify_password(form_data.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user or not verify_password(password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid Credentials")
+
+    # 🚨 Cegah resident login ke web
+    if device == "web" and user.role.name == "resident":
+        raise HTTPException(
+            status_code=403,
+            detail="Residents cannot access CMS"
+        )
+
+    # 🚨 Cegah admin login dari mobile (opsional)
+    if device == "mobile" and user.role.name != "resident":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin cannot login from mobile"
+        )
 
     token = create_access_token({
         "user_id": user.id,
@@ -26,5 +37,5 @@ def login(
 
     return {
         "access_token": token,
-        "token_type": "bearer"
+        "role": user.role.name
     }
