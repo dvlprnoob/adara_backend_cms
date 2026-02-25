@@ -7,7 +7,7 @@ class User(Base):
     
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    email = Column(String, unique=True, index=True),
+    email = Column(String, unique=True, index=True)
     password = Column(String)
     
     role_id = Column(Integer, ForeignKey("roles.id"))

@@ -7,7 +7,7 @@ import os
 
 load_dotenv()
 
-DATABASE_URL = "DATABASE_URL", "postgresql://postgres:password@localhost:5432/everwood_db"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
 
