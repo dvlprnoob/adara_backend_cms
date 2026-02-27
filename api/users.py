@@ -219,6 +219,7 @@ def get_user(
             name=user.name,
             email=user.email,
             role=user.role.name,
+            is_active=user.is_active,
             profile=ResidentProfileResponse(
                 address=profile.address,
                 block=profile.block,
@@ -234,7 +235,8 @@ def get_user(
         id=user.id,
         name=user.name,
         email=user.email,
-        role=user.role.name
+        role=user.role.name,
+        is_active=user.is_active
     )
     
 

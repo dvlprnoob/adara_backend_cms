@@ -21,6 +21,7 @@ class AdminCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    role: str
 
 
 # =========================
