@@ -11,9 +11,8 @@ class EmergencyTypeCreate(EmergencyTypeBase):
 
 
 class EmergencyTypeUpdate(BaseModel):
-    name: Optional[str]
-    is_active: Optional[bool]
-
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class EmergencyTypeResponse(EmergencyTypeBase):
     id: int

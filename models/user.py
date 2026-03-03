@@ -14,3 +14,8 @@ class User(Base):
     role = relationship("Role")
     
     is_active = Column(Boolean, default=True)
+
+    # ✅ Virtual field
+    @property
+    def role_name(self):
+        return self.role.name if self.role else None
