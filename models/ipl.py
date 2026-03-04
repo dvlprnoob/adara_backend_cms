@@ -13,7 +13,7 @@ class IPL(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     
-    user_id = Column(Integer, ForeignKey("users.id", nullable=False))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     month = Column(String, nullable=False)
     amount = Column(Numeric(15, 2,), nullable=False)
@@ -25,4 +25,4 @@ class IPL(Base):
     
     #relationship
     user = relationship("User", back_populates="ipls")
-    payments = relationship("Payment", back_populates="ipl", cascade="all, delete")
+    # payments = relationship("Payment", back_populates="ipl", cascade="all, delete")

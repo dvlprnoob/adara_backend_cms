@@ -19,3 +19,8 @@ class User(Base):
     @property
     def role_name(self):
         return self.role.name if self.role else None
+    
+    
+    installments = relationship("Installment", back_populates="user")
+    ipls = relationship("IPL", back_populates="user")
+    # payments = relationship("Payment", back_populates="user")

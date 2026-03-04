@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from db.session import engine, Base, SessionLocal
 from db.base import *
 from db.seed import seed_roles, seed_super_admin
-from api import auth, users, banners, roles, services, emergency_type, emergency_report
+from api import auth, users, banners, roles, services, emergency_type, emergency_report, ipl, installment
 
 
 app = FastAPI()
@@ -40,3 +40,5 @@ app.include_router(roles.router, prefix="/roles", tags=["Roles"])
 app.include_router(services.router, prefix="/services", tags=["Services"])
 app.include_router(emergency_type.router, prefix="/emergency-types", tags=["Emergency Types"])
 app.include_router(emergency_report.router, prefix="/emergency-reports", tags=["Emergency Reports"])
+app.include_router(ipl.router, prefix="/ipls", tags=["IPLs"])
+app.include_router(installment.router, prefix="/installments", tags=["Installments"])
