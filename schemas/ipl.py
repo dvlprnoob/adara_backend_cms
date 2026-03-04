@@ -3,13 +3,15 @@ from decimal import Decimal
 
 class IPLCreate(BaseModel):
     user_id: int
-    month: int
+    payment_method_id: int
+    month: str
     amount: Decimal
     due_day: int
 
 class IPLResponse(BaseModel):
     id: int
     user_id: int
+    payment_method_id: int
     month: str
     amount: Decimal
     due_day: int
