@@ -1,11 +1,11 @@
-from sqlalchemy import Column, Integer, ForeignKey, String, Numeric, Enum
+from sqlalchemy import Column, Integer, ForeignKey, String, Numeric, Enum, Date
 from sqlalchemy.orm import relationship
 import enum
 
 from db.session import Base
 
 
-class IPLStatus(enum.Enum):
+class IPLStatus(str, enum.Enum):
     pending = "pending"
     paid = "paid"
 
@@ -15,26 +15,42 @@ class IPL(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True
+    )
 
     payment_method_id = Column(
         Integer,
         ForeignKey("payment_methods.id"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
-    month = Column(String, nullable=False)
+    # Simpan sebagai tanggal (recommend: pakai tanggal 1 tiap bulan)
+    month = Column(Date, nullable=False, index=True)
 
     amount = Column(Numeric(15, 2), nullable=False)
 
+    # Idealnya 1 - 31
     due_day = Column(Integer, nullable=False)
 
     status = Column(
-        Enum(IPLStatus),
-        default=IPLStatus.pending
+        Enum(IPLStatus, name="ipl_status"),
+        default=IPLStatus.pending,
+        nullable=False
     )
 
-    proof = Column(String, nullable=True)
+    proof_url = Column(String, nullable=True)
 
-    user = relationship("User", back_populates="ipls")
-    payment_method = relationship("PaymentMethod", back_populates="ipls")
+    user = relationship(
+        "User",
+        back_populates="ipls"
+    )
+
+    payment_method = relationship(
+        "PaymentMethod",
+        back_populates="ipls"
+    )

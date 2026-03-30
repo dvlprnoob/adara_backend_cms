@@ -9,7 +9,7 @@ class PaymentMethodCreate(BaseModel):
 
 
 class PaymentMethodUpdate(BaseModel):
-    max_installments: Optional[int] = None
+    max_installment: Optional[int] = None
     due_day: Optional[int] = None
     is_active: Optional[bool] = None
 
