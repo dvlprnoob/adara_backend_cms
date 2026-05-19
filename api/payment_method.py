@@ -16,10 +16,21 @@ router = APIRouter()
 #GET LIST
 @router.get("/", response_model=list[PaymentMethodResponse])
 def get_payment_methods(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user = Depends(role_required(["admin", "super_admin"]))
 ):
-    methods = db.query(PaymentMethod).all()
+    methods = db.query(PaymentMethod).filter(
+        PaymentMethod.is_active == True
+    ).all()
     return methods
+
+
+@router.get("/admin", response_model=list[PaymentMethodResponse])
+def get_all_payment_methods(
+    db: Session = Depends(get_db),
+    user = Depends(role_required(["admin", "super_admin"]))
+):
+    return db.query(PaymentMethod).all()
 
 #Create Payment Method
 @router.post("/", response_model=PaymentMethodResponse)
@@ -28,6 +39,12 @@ def create_payment_method(
     db: Session = Depends(get_db),
     user = Depends(role_required(["admin", "super_admin"]))
 ):
+    existing = db.query(PaymentMethod).filter(
+        PaymentMethod.name == payload.name
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Payment Method name already exists")
+
     method = PaymentMethod(**payload.model_dump())
     
     db.add(method)
@@ -75,6 +92,12 @@ def delete_payment_method(
 
     if not method:
         raise HTTPException(status_code=404, detail="Payment Method not Found")
+
+    if method.installments or method.ipls:
+        raise HTTPException(
+            status_code=400,
+            detail="Payment Method already used, deactivate it instead"
+        )
     
     db.delete(method)
     db.commit()

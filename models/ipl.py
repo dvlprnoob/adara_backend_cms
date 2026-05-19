@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, ForeignKey, String, Numeric, Enum, Date
+from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 import enum
 
@@ -53,4 +54,15 @@ class IPL(Base):
     payment_method = relationship(
         "PaymentMethod",
         back_populates="ipls"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "payment_method_id",
+            "month",
+            name="uq_ipl_user_method_month"
+        ),
+        CheckConstraint("amount > 0", name="check_ipl_amount_positive"),
+        CheckConstraint("due_day >= 1 AND due_day <= 31", name="check_ipl_due_day_range"),
     )

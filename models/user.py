@@ -23,4 +23,6 @@ class User(Base):
     
     installments = relationship("Installment", back_populates="user")
     ipls = relationship("IPL", back_populates="user")
+    construction_progress = relationship("ConstructionProgress", back_populates="user", uselist=False)
+    refresh_tokens = relationship("RefreshToken", back_populates="user")
     # payments = relationship("Payment", back_populates="user")

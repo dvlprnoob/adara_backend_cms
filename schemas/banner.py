@@ -16,6 +16,7 @@ class BannerUpdate(BaseModel):
 class BannerResponse(BaseModel):
     id: int
     name: str
+    link: Optional[str] = None
     photo: str
     is_active: bool
     

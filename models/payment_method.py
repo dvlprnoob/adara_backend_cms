@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, Enum
+from sqlalchemy import CheckConstraint
 from sqlalchemy.orm import relationship
 import enum
 
@@ -31,12 +32,21 @@ class PaymentMethod(Base):
 
     installments = relationship(
         "Installment",
-        back_populates="payment_method",
-        cascade="all, delete-orphan"
+        back_populates="payment_method"
     )
 
     ipls = relationship(
         "IPL",
-        back_populates="payment_method",
-        cascade="all, delete-orphan"
+        back_populates="payment_method"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "max_installment IS NULL OR max_installment > 0",
+            name="check_payment_method_max_installment_positive"
+        ),
+        CheckConstraint(
+            "due_day IS NULL OR (due_day >= 1 AND due_day <= 31)",
+            name="check_payment_method_due_day_range"
+        ),
     )

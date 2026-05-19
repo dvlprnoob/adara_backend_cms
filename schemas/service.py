@@ -6,19 +6,19 @@ class ServiceBase(BaseModel):
     service_name: str
     owner_name: str
     phone: str
-    gmaps_link: str
-    is_active: bool
+    gmaps_link: Optional[str] = None
+    is_active: bool = True
     
 class ServiceCreate(ServiceBase):
     pass
 
 class ServiceUpdate(BaseModel):
-    category: Optional[str]
-    service_name: Optional[str]
-    owner_name: Optional[str]
-    phone: Optional[str]
-    gmaps_link: Optional[str]
-    is_active : Optional[bool]
+    category: Optional[str] = None
+    service_name: Optional[str] = None
+    owner_name: Optional[str] = None
+    phone: Optional[str] = None
+    gmaps_link: Optional[str] = None
+    is_active: Optional[bool] = None
     
 class ServiceResponse(ServiceBase):
     id: int

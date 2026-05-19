@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from core.uploads import save_upload_image
 from db.session import get_db
 from models.ipl import IPL, IPLStatus
+from models.payment_method import PaymentMethod, PaymentMethodType
+from models.user import User
 from schemas.ipl import IPLCreate, IPLResponse
-from schemas.payment import UploadProof
 from api.deps import role_required
 
 router = APIRouter()
@@ -16,6 +18,22 @@ def create_ipl(
     db: Session = Depends(get_db),
     user=Depends(role_required(["admin", "super_admin"]))
 ):
+    resident = db.query(User).filter(User.id == payload.user_id).first()
+    if not resident or resident.role.name != "resident":
+        raise HTTPException(status_code=400, detail="Resident user not found")
+
+    method = db.query(PaymentMethod).filter(
+        PaymentMethod.id == payload.payment_method_id
+    ).first()
+    if not method or not method.is_active:
+        raise HTTPException(status_code=400, detail="Active payment method not found")
+
+    if method.type != PaymentMethodType.monthly_due:
+        raise HTTPException(status_code=400, detail="Payment method must be monthly_due type")
+
+    if method.due_day and payload.due_day != method.due_day:
+        raise HTTPException(status_code=400, detail="Due day must match payment method")
+
     # prevent duplicate IPL (user + payment_method + month)
     existing = db.query(IPL).filter(
         IPL.user_id == payload.user_id,
@@ -56,42 +74,10 @@ def get_all_ipl(
     return db.query(IPL).order_by(IPL.month.desc()).all()
 
 
-@router.patch("/{ipl_id}/pay")
-def pay_ipl(
-    ipl_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(role_required(["resident"]))
-):
-    ipl = db.query(IPL).filter(
-        IPL.id == ipl_id,
-        IPL.user_id == user.id
-    ).first()
-
-    if not ipl:
-        raise HTTPException(status_code=404, detail="IPL not found")
-
-    if ipl.status == IPLStatus.paid:
-        raise HTTPException(status_code=400, detail="IPL already paid")
-
-    # kalau pakai approval flow → jangan langsung paid
-    if ipl.proof_url:
-        raise HTTPException(
-            status_code=400,
-            detail="Use approval flow (upload proof already used)"
-        )
-
-    ipl.status = IPLStatus.paid
-
-    db.commit()
-    db.refresh(ipl)
-
-    return {"message": "IPL paid successfully"}
-
-
 @router.post("/{ipl_id}/upload-proof")
-def upload_ipl_proof(
+async def upload_ipl_proof(
     ipl_id: int,
-    payload: UploadProof,
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user=Depends(role_required(["resident"]))
 ):
@@ -109,12 +95,43 @@ def upload_ipl_proof(
     if ipl.status == IPLStatus.paid:
         raise HTTPException(status_code=400, detail="IPL already paid")
 
-    ipl.proof_url = payload.proof_url
+    ipl.proof_url = await save_upload_image(file, "payment-proofs/ipls")
 
     db.commit()
     db.refresh(ipl)
 
-    return {"message": "Proof uploaded successfully"}
+    return {
+        "message": "Proof uploaded successfully",
+        "proof_url": ipl.proof_url
+    }
+
+
+@router.post("/{ipl_id}/admin-upload-proof")
+async def admin_upload_ipl_proof(
+    ipl_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user=Depends(role_required(["admin", "super_admin"]))
+):
+    ipl = db.query(IPL).filter(
+        IPL.id == ipl_id
+    ).first()
+
+    if not ipl:
+        raise HTTPException(status_code=404, detail="IPL not found")
+
+    if ipl.status == IPLStatus.paid:
+        raise HTTPException(status_code=400, detail="IPL already paid")
+
+    ipl.proof_url = await save_upload_image(file, "payment-proofs/ipls")
+
+    db.commit()
+    db.refresh(ipl)
+
+    return {
+        "message": "Proof uploaded successfully",
+        "proof_url": ipl.proof_url
+    }
 
 
 @router.patch("/{ipl_id}/approve")
@@ -145,3 +162,30 @@ def approve_ipl(
     db.refresh(ipl)
 
     return {"message": "IPL approved"}
+
+
+@router.patch("/{ipl_id}/reject")
+def reject_ipl(
+    ipl_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(role_required(["admin", "super_admin"]))
+):
+    ipl = db.query(IPL).filter(
+        IPL.id == ipl_id
+    ).first()
+
+    if not ipl:
+        raise HTTPException(status_code=404, detail="IPL not found")
+
+    if not ipl.proof_url:
+        raise HTTPException(status_code=400, detail="No proof to reject")
+
+    if ipl.status == IPLStatus.paid:
+        raise HTTPException(status_code=400, detail="Already paid")
+
+    ipl.proof_url = None
+
+    db.commit()
+    db.refresh(ipl)
+
+    return {"message": "IPL rejected"}

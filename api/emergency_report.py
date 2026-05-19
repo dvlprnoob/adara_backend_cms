@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from db.session import get_db
 from api.deps import role_required
 from models.emergency_type import EmergencyType
@@ -28,7 +29,11 @@ def create_report(
 
     emergency_type = db.query(EmergencyType).filter(
         EmergencyType.id == payload.emergency_type_id,
-        EmergencyType.is_active == True
+        EmergencyType.is_active == True,
+        or_(
+            EmergencyType.created_by == None,
+            EmergencyType.created_by == current_user.id
+        )
     ).first()
 
     if not emergency_type:
@@ -84,3 +89,22 @@ def resolve_report(
     db.refresh(report)
 
     return report
+
+
+@router.delete("/{report_id}")
+def delete_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["admin", "super_admin"]))
+):
+    report = db.query(EmergencyReport)\
+        .filter(EmergencyReport.id == report_id)\
+        .first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    db.delete(report)
+    db.commit()
+
+    return {"message": "Emergency report deleted"}

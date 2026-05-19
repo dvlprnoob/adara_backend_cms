@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from db.session import get_db
 from models.emergency_type import EmergencyType
+from models.user import User
+from api.deps import role_required
 from schemas.emergency_type import *
 
 router = APIRouter()
@@ -14,12 +16,15 @@ router = APIRouter()
 # - Global types
 # - Personal types miliknya
 @router.get("/", response_model=list[EmergencyTypeResponse])
-def get_types(user_id: int, db: Session = Depends(get_db)):
+def get_types(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["resident"]))
+):
     return db.query(EmergencyType).filter(
         EmergencyType.is_active == True,
         or_(
             EmergencyType.created_by == None,
-            EmergencyType.created_by == user_id
+            EmergencyType.created_by == current_user.id
         )
     ).all()
 
@@ -28,7 +33,10 @@ def get_types(user_id: int, db: Session = Depends(get_db)):
 # CMS - GET ALL TYPES
 # =========================
 @router.get("/admin", response_model=list[EmergencyTypeResponse])
-def get_all_types(db: Session = Depends(get_db)):
+def get_all_types(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["admin", "super_admin"]))
+):
     return db.query(EmergencyType).all()
 
 
@@ -36,7 +44,11 @@ def get_all_types(db: Session = Depends(get_db)):
 # CMS - CREATE GLOBAL TYPE
 # =========================
 @router.post("/admin", response_model=EmergencyTypeResponse)
-def create_admin_type(payload: EmergencyTypeCreate, db: Session = Depends(get_db)):
+def create_admin_type(
+    payload: EmergencyTypeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["admin", "super_admin"]))
+):
     new_type = EmergencyType(
         name=payload.name,
         is_active=True,
@@ -54,11 +66,15 @@ def create_admin_type(payload: EmergencyTypeCreate, db: Session = Depends(get_db
 # MOBILE - CREATE PERSONAL TYPE
 # =========================
 @router.post("/mobile", response_model=EmergencyTypeResponse)
-def create_mobile_type(payload: EmergencyTypeCreate, user_id: int, db: Session = Depends(get_db)):
+def create_mobile_type(
+    payload: EmergencyTypeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["resident"]))
+):
     new_type = EmergencyType(
         name=payload.name,
         is_active=True,
-        created_by=user_id   # PERSONAL
+        created_by=current_user.id   # PERSONAL
     )
 
     db.add(new_type)
@@ -72,7 +88,12 @@ def create_mobile_type(payload: EmergencyTypeCreate, user_id: int, db: Session =
 # UPDATE TYPE (ADMIN FULL ACCESS)
 # =========================
 @router.put("/{type_id}", response_model=EmergencyTypeResponse)
-def update_type(type_id: int, payload: EmergencyTypeUpdate, db: Session = Depends(get_db)):
+def update_type(
+    type_id: int,
+    payload: EmergencyTypeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["admin", "super_admin"]))
+):
     item = db.query(EmergencyType).filter(EmergencyType.id == type_id).first()
 
     if not item:
@@ -91,7 +112,11 @@ def update_type(type_id: int, payload: EmergencyTypeUpdate, db: Session = Depend
 # DELETE TYPE (ADMIN FULL ACCESS)
 # =========================
 @router.delete("/{type_id}")
-def delete_type(type_id: int, db: Session = Depends(get_db)):
+def delete_type(
+    type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["admin", "super_admin"]))
+):
     item = db.query(EmergencyType).filter(EmergencyType.id == type_id).first()
 
     if not item:
@@ -107,7 +132,11 @@ def delete_type(type_id: int, db: Session = Depends(get_db)):
 # TOGGLE ACTIVE (ADMIN)
 # =========================
 @router.patch("/{type_id}/toggle", response_model=EmergencyTypeResponse)
-def toggle_status(type_id: int, db: Session = Depends(get_db)):
+def toggle_status(
+    type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["admin", "super_admin"]))
+):
     item = db.query(EmergencyType).filter(EmergencyType.id == type_id).first()
 
     if not item:

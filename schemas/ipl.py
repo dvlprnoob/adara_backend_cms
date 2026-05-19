@@ -1,13 +1,13 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import date
 
 class IPLCreate(BaseModel):
     user_id: int
     payment_method_id: int
-    month: str
-    amount: Decimal
-    due_day: int
+    month: date
+    amount: Decimal = Field(gt=0)
+    due_day: int = Field(ge=1, le=31)
 
 class IPLResponse(BaseModel):
     id: int
@@ -17,7 +17,7 @@ class IPLResponse(BaseModel):
     amount: Decimal
     due_day: int
     status: str
-    proof: str | None
+    proof_url: str | None
     
     class Config:
         from_attributes = True

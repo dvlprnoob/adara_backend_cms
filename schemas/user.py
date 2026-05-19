@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 # =========================
@@ -8,11 +8,11 @@ from typing import Optional
 class ResidentCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
     address: str
     block: str
     phone: str
-    total_people: int
+    total_people: int = Field(gt=0)
     npwp: Optional[str] = None
     ktp_number: Optional[str] = None
 
@@ -20,7 +20,7 @@ class ResidentCreate(BaseModel):
 class AdminCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
     role: str
 
 
@@ -64,7 +64,7 @@ class UpdateMyProfile(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     block: Optional[str] = None
-    total_people: Optional[int] = None
+    total_people: Optional[int] = Field(default=None, gt=0)
     npwp: Optional[str] = None
     ktp_number: Optional[str] = None
     
@@ -74,10 +74,10 @@ class UpdateMyProfile(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
-    new_password: str
+    new_password: str = Field(min_length=8)
     
 class ResetPasswordRequest(BaseModel):
-    new_password: str
+    new_password: str = Field(min_length=8)
     
 class UpdateRoleRequest(BaseModel):
     role_name: str

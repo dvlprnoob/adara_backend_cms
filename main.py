@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from core.uploads import UPLOAD_ROOT
 from db.session import engine, Base, SessionLocal
 from db.base import *
 from db.seed import seed_roles, seed_super_admin
-from api import auth, users, banners, roles, services, emergency_type, emergency_report, ipl, installment, payment_method
+from api import auth, users, banners, roles, services, emergency_type, emergency_report, ipl, installment, payment_method, progress
 
 
 app = FastAPI()
@@ -23,15 +25,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
+
 Base.metadata.create_all(bind=engine)
 
 # Seed roles saat startup
 @app.on_event("startup")
 def startup_event():
     db = SessionLocal()
-    seed_roles(db)
-    seed_super_admin(db)
-    db.close()
+    try:
+        seed_roles(db)
+        seed_super_admin(db)
+    finally:
+        db.close()
 
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
@@ -43,3 +50,4 @@ app.include_router(emergency_report.router, prefix="/emergency-reports", tags=["
 app.include_router(ipl.router, prefix="/ipls", tags=["IPLs"])
 app.include_router(installment.router, prefix="/installments", tags=["Installments"])
 app.include_router(payment_method.router, prefix="/payment-methods", tags=['Payment Method'])
+app.include_router(progress.router, prefix="/progress", tags=["Progress"])

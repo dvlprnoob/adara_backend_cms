@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Numeric, Enum
+from sqlalchemy import Column, Integer, ForeignKey, Numeric, Enum, String
 from sqlalchemy.orm import relationship
 from sqlalchemy import CheckConstraint
 import enum
@@ -38,6 +38,8 @@ class Installment(Base):
 
     paid_terms = Column(Integer, default=0, nullable=False)
 
+    proof_url = Column(String, nullable=True)
+
     status = Column(
         Enum(InstallmentStatus, name="installment_status"),
         default=InstallmentStatus.running,
@@ -45,6 +47,7 @@ class Installment(Base):
     )
 
     __table_args__ = (
+        CheckConstraint("total_amount > 0", name="check_total_amount_positive"),
         CheckConstraint("total_terms > 0", name="check_total_terms_positive"),
         CheckConstraint("paid_terms >= 0", name="check_paid_terms_non_negative"),
         CheckConstraint("paid_terms <= total_terms", name="check_paid_not_exceed_total"),
@@ -59,3 +62,21 @@ class Installment(Base):
         "PaymentMethod",
         back_populates="installments"
     )
+
+    @property
+    def amount_per_term(self):
+        return self.total_amount / self.total_terms
+
+    @property
+    def remaining_terms(self):
+        return self.total_terms - self.paid_terms
+
+    @property
+    def remaining_payment(self):
+        return self.amount_per_term * self.remaining_terms
+
+    @property
+    def next_term(self):
+        if self.status == InstallmentStatus.done:
+            return None
+        return self.paid_terms + 1
