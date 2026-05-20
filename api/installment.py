@@ -34,6 +34,13 @@ def create_installment(
     if method.max_installment and payload.total_terms > method.max_installment:
         raise HTTPException(status_code=400, detail="Total terms exceeds payment method limit")
 
+    existing = db.query(Installment).filter(
+        Installment.user_id == payload.user_id,
+        Installment.status != InstallmentStatus.cancelled
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Resident already has assigned KPR/installment")
+
     installment = Installment(
         user_id=payload.user_id,
         payment_method_id=payload.payment_method_id,

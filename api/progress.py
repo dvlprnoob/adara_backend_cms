@@ -1,9 +1,10 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from api.deps import role_required
+from core.uploads import save_upload_image
 from db.session import get_db
 from models.progress import ConstructionProgress, ConstructionProgressUpdate
 from models.user import User
@@ -38,6 +39,8 @@ def serialize_progress(progress: ConstructionProgress) -> ProgressResponse:
     return ProgressResponse(
         id=progress.id,
         user_id=progress.user_id,
+        user_name=progress.user.name if progress.user else None,
+        user_email=progress.user.email if progress.user else None,
         status=progress.status,
         percent=progress.percent,
         is_done=progress.is_done,
@@ -82,6 +85,15 @@ def get_progress_by_user(
         raise HTTPException(status_code=404, detail="Progress not found")
 
     return serialize_progress(progress)
+
+
+@router.get("/{progress_id}", response_model=ProgressResponse)
+def get_progress(
+    progress_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required(["admin", "super_admin"]))
+):
+    return serialize_progress(get_progress_or_404(db, progress_id))
 
 
 @router.post("/", response_model=ProgressResponse)
@@ -160,7 +172,58 @@ def update_progress_status(
     progress.percent = payload.percent
     progress.is_done = payload.status == "done" or payload.percent >= 100
 
+    note = payload.note or f"Status progress diupdate ke {payload.status} ({payload.percent}%)"
+    db.add(ConstructionProgressUpdate(
+        progress_id=progress.id,
+        note=note,
+        photos=json.dumps(payload.photos[:6]),
+    ))
+
     db.commit()
     db.refresh(progress)
 
     return serialize_progress(progress)
+
+
+@router.delete("/{progress_id}")
+def delete_progress(
+    progress_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required(["admin", "super_admin"]))
+):
+    progress = get_progress_or_404(db, progress_id)
+    db.delete(progress)
+    db.commit()
+    return {"message": "Progress deleted successfully"}
+
+
+@router.post("/photos/upload")
+async def upload_progress_photos(
+    request: Request,
+    current_user=Depends(role_required(["admin", "super_admin"]))
+):
+    form = await request.form()
+    files = []
+
+    for key in ("files", "file", "photos", "photo"):
+        files.extend(form.getlist(key))
+
+    files = [
+        file for file in files
+        if hasattr(file, "filename") and hasattr(file, "read")
+    ]
+
+    if not files:
+        raise HTTPException(
+            status_code=400,
+            detail="No photos uploaded. Use multipart form field 'files'."
+        )
+
+    if len(files) > 6:
+        raise HTTPException(status_code=400, detail="Maximum 6 photos are allowed")
+
+    urls = []
+    for file in files:
+        urls.append(await save_upload_image(file, "progress"))
+
+    return {"photos": urls}

@@ -18,6 +18,8 @@ class ProgressUpdateCreate(BaseModel):
 class ProgressStatusUpdate(BaseModel):
     status: str
     percent: int = Field(ge=0, le=100)
+    note: str | None = None
+    photos: list[str] = Field(default_factory=list, max_length=6)
 
 
 class ProgressUpdateResponse(BaseModel):
@@ -30,6 +32,8 @@ class ProgressUpdateResponse(BaseModel):
 class ProgressResponse(BaseModel):
     id: int
     user_id: int
+    user_name: str | None = None
+    user_email: str | None = None
     status: str
     percent: int
     is_done: bool
