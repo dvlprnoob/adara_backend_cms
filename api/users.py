@@ -308,6 +308,9 @@ def reset_user_password(
     user = get_user_or_404(db, user_id)
     ensure_can_manage_user(current_user, user)
 
+    if user.role.name != "resident":
+        raise HTTPException(status_code=400, detail="Only resident password can be reset from CMS")
+
     user.password = hash_password(payload.new_password)
     db.commit()
 

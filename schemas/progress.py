@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 
@@ -20,6 +20,13 @@ class ProgressStatusUpdate(BaseModel):
     percent: int = Field(ge=0, le=100)
     note: str | None = None
     photos: list[str] = Field(default_factory=list, max_length=6)
+    handover_date: date | None = None
+    warranty_end_date: date | None = None
+
+
+class ProgressWarrantyUpdate(BaseModel):
+    handover_date: date | None = None
+    warranty_end_date: date | None = None
 
 
 class ProgressUpdateResponse(BaseModel):
@@ -37,4 +44,6 @@ class ProgressResponse(BaseModel):
     status: str
     percent: int
     is_done: bool
+    handover_date: date | None = None
+    warranty_end_date: date | None = None
     updates: list[ProgressUpdateResponse]

@@ -25,4 +25,5 @@ class User(Base):
     ipls = relationship("IPL", back_populates="user")
     construction_progress = relationship("ConstructionProgress", back_populates="user", uselist=False)
     refresh_tokens = relationship("RefreshToken", back_populates="user")
+    chat_thread = relationship("ChatThread", foreign_keys="ChatThread.resident_id", back_populates="resident", uselist=False)
     # payments = relationship("Payment", back_populates="user")

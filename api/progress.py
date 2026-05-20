@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from schemas.progress import (
     ProgressStatusUpdate,
     ProgressUpdateCreate,
     ProgressUpdateResponse,
+    ProgressWarrantyUpdate,
 )
 
 router = APIRouter()
@@ -44,6 +46,8 @@ def serialize_progress(progress: ConstructionProgress) -> ProgressResponse:
         status=progress.status,
         percent=progress.percent,
         is_done=progress.is_done,
+        handover_date=progress.handover_date,
+        warranty_end_date=progress.warranty_end_date,
         updates=[serialize_update(update) for update in progress.updates],
     )
 
@@ -172,6 +176,13 @@ def update_progress_status(
     progress.percent = payload.percent
     progress.is_done = payload.status == "done" or payload.percent >= 100
 
+    if progress.is_done:
+        progress.handover_date = payload.handover_date or progress.handover_date or date.today()
+        progress.warranty_end_date = payload.warranty_end_date or progress.warranty_end_date
+    else:
+        progress.handover_date = payload.handover_date
+        progress.warranty_end_date = payload.warranty_end_date
+
     note = payload.note or f"Status progress diupdate ke {payload.status} ({payload.percent}%)"
     db.add(ConstructionProgressUpdate(
         progress_id=progress.id,
@@ -195,6 +206,21 @@ def delete_progress(
     db.delete(progress)
     db.commit()
     return {"message": "Progress deleted successfully"}
+
+
+@router.patch("/{progress_id}/warranty", response_model=ProgressResponse)
+def update_progress_warranty(
+    progress_id: int,
+    payload: ProgressWarrantyUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required(["admin", "super_admin"]))
+):
+    progress = get_progress_or_404(db, progress_id)
+    progress.handover_date = payload.handover_date
+    progress.warranty_end_date = payload.warranty_end_date
+    db.commit()
+    db.refresh(progress)
+    return serialize_progress(progress)
 
 
 @router.post("/photos/upload")

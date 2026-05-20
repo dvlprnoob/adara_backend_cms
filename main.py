@@ -3,9 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from core.uploads import UPLOAD_ROOT
 from db.session import engine, Base, SessionLocal
+from db.schema_migrations import ensure_installment_due_date_column, ensure_progress_warranty_columns
 from db.base import *
 from db.seed import seed_roles, seed_super_admin
-from api import auth, users, banners, roles, services, emergency_type, emergency_report, ipl, installment, payment_method, progress
+from api import auth, users, banners, roles, services, emergency_type, emergency_report, ipl, installment, payment_method, progress, chat, service_report
 
 
 app = FastAPI()
@@ -30,6 +31,8 @@ UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 Base.metadata.create_all(bind=engine)
+ensure_installment_due_date_column(engine)
+ensure_progress_warranty_columns(engine)
 
 # Seed roles saat startup
 @app.on_event("startup")
@@ -52,3 +55,5 @@ app.include_router(ipl.router, prefix="/ipls", tags=["IPLs"])
 app.include_router(installment.router, prefix="/installments", tags=["Installments"])
 app.include_router(payment_method.router, prefix="/payment-methods", tags=['Payment Method'])
 app.include_router(progress.router, prefix="/progress", tags=["Progress"])
+app.include_router(chat.router, prefix="/chats", tags=["Chats"])
+app.include_router(service_report.router, prefix="/service-reports", tags=["Service Reports"])

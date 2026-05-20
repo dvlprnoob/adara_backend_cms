@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -6,10 +8,31 @@ from db.session import get_db
 from models.installment import Installment, InstallmentStatus
 from models.payment_method import PaymentMethod, PaymentMethodType
 from models.user import User
-from schemas.installment import InstallmentCreate, InstallmentResponse
+from schemas.installment import InstallmentCreate, InstallmentDueDateUpdate, InstallmentResponse
 from api.deps import role_required
 
 router = APIRouter()
+
+
+def add_months(value: date, months: int = 1) -> date:
+    month = value.month - 1 + months
+    year = value.year + month // 12
+    month = month % 12 + 1
+    days_in_month = [
+        31,
+        29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ][month - 1]
+    return date(year, month, min(value.day, days_in_month))
 
 
 @router.post("/", response_model=InstallmentResponse)
@@ -34,6 +57,9 @@ def create_installment(
     if method.max_installment and payload.total_terms > method.max_installment:
         raise HTTPException(status_code=400, detail="Total terms exceeds payment method limit")
 
+    if payload.next_due_date < date.today():
+        raise HTTPException(status_code=400, detail="Next due date cannot be in the past")
+
     existing = db.query(Installment).filter(
         Installment.user_id == payload.user_id,
         Installment.status != InstallmentStatus.cancelled
@@ -47,7 +73,8 @@ def create_installment(
         total_amount=payload.total_amount,
         total_terms=payload.total_terms,
         paid_terms=0,
-        status=InstallmentStatus.running
+        status=InstallmentStatus.running,
+        next_due_date=payload.next_due_date
     )
 
     db.add(installment)
@@ -160,12 +187,39 @@ def approve_installment(
     # update status kalau sudah lunas
     if installment.paid_terms >= installment.total_terms:
         installment.status = InstallmentStatus.done
+        installment.next_due_date = None
+    elif installment.next_due_date:
+        installment.next_due_date = add_months(installment.next_due_date)
     installment.proof_url = None
 
     db.commit()
     db.refresh(installment)
 
     return {"message": "Installment payment approved"}
+
+
+@router.patch("/{installment_id}/due-date", response_model=InstallmentResponse)
+def update_installment_due_date(
+    installment_id: int,
+    payload: InstallmentDueDateUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(role_required(["admin", "super_admin"]))
+):
+    installment = db.query(Installment).filter(
+        Installment.id == installment_id
+    ).first()
+
+    if not installment:
+        raise HTTPException(status_code=404, detail="Installment not found")
+
+    if installment.status == InstallmentStatus.done:
+        raise HTTPException(status_code=400, detail="Installment already completed")
+
+    installment.next_due_date = payload.next_due_date
+    db.commit()
+    db.refresh(installment)
+
+    return installment
 
 
 @router.patch("/{installment_id}/reject")

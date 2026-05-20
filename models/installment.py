@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Numeric, Enum, String
+from sqlalchemy import Column, Date, Integer, ForeignKey, Numeric, Enum, String
 from sqlalchemy.orm import relationship
 from sqlalchemy import CheckConstraint
 import enum
@@ -39,6 +39,8 @@ class Installment(Base):
     paid_terms = Column(Integer, default=0, nullable=False)
 
     proof_url = Column(String, nullable=True)
+
+    next_due_date = Column(Date, nullable=True)
 
     status = Column(
         Enum(InstallmentStatus, name="installment_status"),

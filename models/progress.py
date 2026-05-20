@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -13,6 +13,8 @@ class ConstructionProgress(Base):
     status = Column(String, default="pondasi", nullable=False)
     percent = Column(Integer, default=10, nullable=False)
     is_done = Column(Boolean, default=False, nullable=False)
+    handover_date = Column(Date, nullable=True)
+    warranty_end_date = Column(Date, nullable=True)
 
     user = relationship("User", back_populates="construction_progress")
     updates = relationship(
