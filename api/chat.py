@@ -1,15 +1,45 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+import anyio
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.encoders import jsonable_encoder
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session, joinedload
 
 from api.deps import role_required
-from db.session import get_db
+from core.security import ALGORITHM, SECRET_KEY
+from db.session import SessionLocal, get_db
 from models.chat import ChatMessage, ChatThread
 from models.user import User
 from schemas.chat import ChatMessageCreate, ChatMessageResponse, ChatThreadDetail, ChatThreadSummary
 
 router = APIRouter()
+
+
+class ChatConnectionManager:
+    def __init__(self):
+        self.admin_connections: set[WebSocket] = set()
+
+    async def connect_admin(self, websocket: WebSocket):
+        await websocket.accept()
+        self.admin_connections.add(websocket)
+
+    def disconnect_admin(self, websocket: WebSocket):
+        self.admin_connections.discard(websocket)
+
+    async def broadcast_admin(self, payload: dict):
+        disconnected = []
+        for websocket in self.admin_connections:
+            try:
+                await websocket.send_json(jsonable_encoder(payload))
+            except RuntimeError:
+                disconnected.append(websocket)
+
+        for websocket in disconnected:
+            self.disconnect_admin(websocket)
+
+
+chat_connections = ChatConnectionManager()
 
 
 def get_or_create_thread(db: Session, resident: User) -> ChatThread:
@@ -74,6 +104,69 @@ def clean_message(payload: ChatMessageCreate) -> str:
     return message
 
 
+def websocket_user(websocket: WebSocket, db: Session) -> User | None:
+    token = websocket.query_params.get("token") or websocket.cookies.get("access_token")
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+
+    if payload.get("type") != "access":
+        return None
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        return None
+
+    return user
+
+
+def chat_event_payload(db: Session, thread_id: int, message: ChatMessage) -> dict:
+    thread = (
+        db.query(ChatThread)
+        .options(joinedload(ChatThread.resident), joinedload(ChatThread.messages).joinedload(ChatMessage.sender))
+        .filter(ChatThread.id == thread_id)
+        .first()
+    )
+    return {
+        "type": "message_created",
+        "thread": thread_summary(thread, "admin"),
+        "message": message_response(message),
+    }
+
+
+def broadcast_admin_chat_event(payload: dict):
+    try:
+        anyio.from_thread.run(chat_connections.broadcast_admin, payload)
+    except RuntimeError:
+        pass
+
+
+@router.websocket("/ws/admin")
+async def admin_chat_websocket(websocket: WebSocket):
+    db = SessionLocal()
+    try:
+        user = websocket_user(websocket, db)
+        if not user or user.role.name not in ["admin", "super_admin"]:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        await chat_connections.connect_admin(websocket)
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        chat_connections.disconnect_admin(websocket)
+    finally:
+        db.close()
+
+
 @router.get("/threads", response_model=list[ChatThreadSummary])
 def get_threads(
     db: Session = Depends(get_db),
@@ -132,6 +225,7 @@ def admin_send_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+    broadcast_admin_chat_event(chat_event_payload(db, thread.id, message))
     return message_response(message)
 
 
@@ -172,4 +266,5 @@ def resident_send_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+    broadcast_admin_chat_event(chat_event_payload(db, thread.id, message))
     return message_response(message)

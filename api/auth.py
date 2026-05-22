@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse
 from core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     ALGORITHM,
+    REFRESH_TOKEN_EXPIRE_DAYS,
     SECRET_KEY,
     create_access_token,
     create_refresh_token,
@@ -20,6 +22,11 @@ from core.security import (
 )
 
 router = APIRouter()
+
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SAMESITE = "lax"
+ACCESS_COOKIE_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+REFRESH_COOKIE_MAX_AGE = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
 
 def utc_now():
@@ -64,6 +71,32 @@ def build_token_response(user: User, db: Session):
     )
 
 
+def set_auth_cookies(response: Response, token_response: TokenResponse):
+    response.set_cookie(
+        key="access_token",
+        value=token_response.access_token,
+        max_age=ACCESS_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=token_response.refresh_token,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
+def clear_auth_cookies(response: Response):
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+
+
 def authenticate_user(email: str, password: str, db: Session):
     user = db.query(User).filter(User.email == email).first()
 
@@ -80,7 +113,11 @@ def authenticate_user(email: str, password: str, db: Session):
 # MOBILE / WEB LOGIN (JSON)
 # =========================
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    payload: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     user = authenticate_user(payload.email, payload.password, db)
 
     if payload.device == "web" and user.role.name == "resident":
@@ -95,7 +132,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail="Admin cannot login from mobile"
         )
 
-    return build_token_response(user, db)
+    token_response = build_token_response(user, db)
+    if payload.device == "web":
+        set_auth_cookies(response, token_response)
+
+    return token_response
 
 
 # =========================
@@ -122,11 +163,21 @@ def login_swagger(
 # =========================
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(
-    payload: RefreshTokenRequest,
+    request: Request,
+    response: Response,
+    payload: RefreshTokenRequest | None = Body(default=None),
     db: Session = Depends(get_db)
 ):
+    refresh_token_value = (
+        payload.refresh_token
+        if payload and payload.refresh_token
+        else request.cookies.get("refresh_token")
+    )
+    if not refresh_token_value:
+        raise HTTPException(status_code=401, detail="Missing refresh token")
+
     try:
-        decoded = jwt.decode(payload.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        decoded = jwt.decode(refresh_token_value, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
@@ -134,7 +185,7 @@ def refresh_token(
         raise HTTPException(status_code=401, detail="Invalid token type")
 
     token_row = db.query(RefreshToken).filter(
-        RefreshToken.token_hash == hash_token(payload.refresh_token),
+        RefreshToken.token_hash == hash_token(refresh_token_value),
         RefreshToken.jti == decoded.get("jti")
     ).first()
 
@@ -146,7 +197,10 @@ def refresh_token(
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
     token_row.revoked_at = utc_now()
-    return build_token_response(user, db)
+    token_response = build_token_response(user, db)
+    set_auth_cookies(response, token_response)
+
+    return token_response
 
 
 # =========================
@@ -154,15 +208,29 @@ def refresh_token(
 # =========================
 @router.post("/logout")
 def logout(
-    payload: RefreshTokenRequest,
+    request: Request,
+    response: Response,
+    payload: RefreshTokenRequest | None = Body(default=None),
     db: Session = Depends(get_db)
 ):
+    refresh_token_value = (
+        payload.refresh_token
+        if payload and payload.refresh_token
+        else request.cookies.get("refresh_token")
+    )
+
+    if not refresh_token_value:
+        clear_auth_cookies(response)
+        return {"message": "Logged out successfully"}
+
     token_row = db.query(RefreshToken).filter(
-        RefreshToken.token_hash == hash_token(payload.refresh_token)
+        RefreshToken.token_hash == hash_token(refresh_token_value)
     ).first()
 
     if token_row and token_row.revoked_at is None:
         token_row.revoked_at = utc_now()
         db.commit()
+
+    clear_auth_cookies(response)
 
     return {"message": "Logged out successfully"}

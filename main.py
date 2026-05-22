@@ -16,8 +16,11 @@ origins = [
     "http://127.0.0.1:5174",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://100.93.213.44",
     "http://everwoodestate.com",
     "https://everwoodestate.com",
+    "http://api.everwoodestate.com",
+    "https://api.everwoodestate.com",
 ]
 
 app.add_middleware(
