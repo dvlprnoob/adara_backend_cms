@@ -6,7 +6,7 @@ from db.session import get_db
 from models.ipl import IPL, IPLStatus
 from models.payment_method import PaymentMethod, PaymentMethodType
 from models.user import User
-from schemas.ipl import IPLCreate, IPLResponse
+from schemas.ipl import IPLCreate, IPLResponse, PaymentRejectRequest
 from api.deps import role_required
 
 router = APIRouter()
@@ -96,6 +96,7 @@ async def upload_ipl_proof(
         raise HTTPException(status_code=400, detail="IPL already paid")
 
     ipl.proof_url = await save_upload_image(file, "payment-proofs/ipls")
+    ipl.rejection_reason = None
 
     db.commit()
     db.refresh(ipl)
@@ -124,6 +125,7 @@ async def admin_upload_ipl_proof(
         raise HTTPException(status_code=400, detail="IPL already paid")
 
     ipl.proof_url = await save_upload_image(file, "payment-proofs/ipls")
+    ipl.rejection_reason = None
 
     db.commit()
     db.refresh(ipl)
@@ -157,6 +159,7 @@ def approve_ipl(
         raise HTTPException(status_code=400, detail="Already paid")
 
     ipl.status = IPLStatus.paid
+    ipl.rejection_reason = None
 
     db.commit()
     db.refresh(ipl)
@@ -167,6 +170,7 @@ def approve_ipl(
 @router.patch("/{ipl_id}/reject")
 def reject_ipl(
     ipl_id: int,
+    payload: PaymentRejectRequest,
     db: Session = Depends(get_db),
     user=Depends(role_required(["admin", "super_admin"]))
 ):
@@ -183,9 +187,14 @@ def reject_ipl(
     if ipl.status == IPLStatus.paid:
         raise HTTPException(status_code=400, detail="Already paid")
 
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Reject reason is required")
+
     ipl.proof_url = None
+    ipl.rejection_reason = reason
 
     db.commit()
     db.refresh(ipl)
 
-    return {"message": "IPL rejected"}
+    return {"message": "IPL rejected", "reason": reason}

@@ -40,6 +40,8 @@ class Installment(Base):
 
     proof_url = Column(String, nullable=True)
 
+    rejection_reason = Column(String, nullable=True)
+
     next_due_date = Column(Date, nullable=True)
 
     status = Column(

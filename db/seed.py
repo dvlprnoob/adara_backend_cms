@@ -5,7 +5,7 @@ from core.security import hash_password
 
 
 def seed_roles(db: Session):
-    roles = ["super_admin", "admin", "resident"]
+    roles = ["super_admin", "admin", "resident", "security"]
     
     for r in roles:
         existing = db.query(Role).filter(Role.name == r).first()

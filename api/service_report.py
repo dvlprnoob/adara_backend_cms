@@ -62,6 +62,20 @@ def get_reports(
     return [serialize_report(report) for report in reports]
 
 
+@router.get("/me", response_model=list[ServiceReportResponse])
+def get_my_reports(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["resident"])),
+):
+    reports = (
+        db.query(ServiceReport)
+        .filter(ServiceReport.user_id == current_user.id)
+        .order_by(ServiceReport.created_at.desc())
+        .all()
+    )
+    return [serialize_report(report) for report in reports]
+
+
 @router.patch("/{report_id}/resolve", response_model=ServiceReportResponse)
 def resolve_report(
     report_id: int,

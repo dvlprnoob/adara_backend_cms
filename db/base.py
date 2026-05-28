@@ -1,8 +1,10 @@
 from db.session import Base
 from models.banner import Banner
+from models.bulletin import Bulletin
 from models.emergency_report import EmergencyReport
 from models.emergency_type import EmergencyType
 from models.installment import Installment
+from models.installment_payment_history import InstallmentPaymentHistory
 from models.ipl import IPL
 from models.payment_method import PaymentMethod
 from models.progress import ConstructionProgress, ConstructionProgressUpdate

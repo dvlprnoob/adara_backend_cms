@@ -61,9 +61,20 @@ def create_report(
 @router.get("/", response_model=list[EmergencyReportResponse])
 def get_reports(
     db: Session = Depends(get_db),
-    current_user: User = Depends(role_required(["admin", "super_admin"]))
+    current_user: User = Depends(role_required(["security", "admin", "super_admin"]))
 ):
     return db.query(EmergencyReport)\
+        .order_by(EmergencyReport.created_at.desc())\
+        .all()
+
+
+@router.get("/me", response_model=list[EmergencyReportResponse])
+def get_my_reports(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(["resident"]))
+):
+    return db.query(EmergencyReport)\
+        .filter(EmergencyReport.user_id == current_user.id)\
         .order_by(EmergencyReport.created_at.desc())\
         .all()
 
@@ -75,7 +86,7 @@ def get_reports(
 def resolve_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(role_required(["admin", "super_admin"]))
+    current_user: User = Depends(role_required(["security", "admin", "super_admin"]))
 ):
     report = db.query(EmergencyReport)\
         .filter(EmergencyReport.id == report_id)\
@@ -95,7 +106,7 @@ def resolve_report(
 def delete_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(role_required(["admin", "super_admin"]))
+    current_user: User = Depends(role_required(["security", "admin", "super_admin"]))
 ):
     report = db.query(EmergencyReport)\
         .filter(EmergencyReport.id == report_id)\

@@ -46,6 +46,8 @@ class IPL(Base):
 
     proof_url = Column(String, nullable=True)
 
+    rejection_reason = Column(String, nullable=True)
+
     user = relationship(
         "User",
         back_populates="ipls"

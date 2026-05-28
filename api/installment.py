@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 from core.uploads import save_upload_image
 from db.session import get_db
 from models.installment import Installment, InstallmentStatus
+from models.installment_payment_history import InstallmentPaymentHistory
 from models.payment_method import PaymentMethod, PaymentMethodType
 from models.user import User
-from schemas.installment import InstallmentCreate, InstallmentDueDateUpdate, InstallmentResponse
+from schemas.installment import InstallmentCreate, InstallmentDueDateUpdate, InstallmentPaymentHistoryResponse, InstallmentResponse, PaymentRejectRequest
 from api.deps import role_required
 
 router = APIRouter()
@@ -94,6 +95,44 @@ def get_my_installments(
     ).all()
 
 
+@router.get("/me/history", response_model=list[InstallmentPaymentHistoryResponse])
+def get_my_installment_history(
+    db: Session = Depends(get_db),
+    user=Depends(role_required(["resident"]))
+):
+    installments = db.query(Installment).filter(
+        Installment.user_id == user.id
+    ).all()
+    histories = db.query(InstallmentPaymentHistory).filter(
+        InstallmentPaymentHistory.user_id == user.id
+    ).order_by(InstallmentPaymentHistory.created_at.desc()).all()
+
+    result = list(histories)
+    approved_terms = {
+        (item.installment_id, item.term)
+        for item in histories
+        if item.status == "approved"
+    }
+
+    for installment in installments:
+        for term in range(1, installment.paid_terms + 1):
+            if (installment.id, term) in approved_terms:
+                continue
+            result.append({
+                "id": -(installment.id * 1000 + term),
+                "installment_id": installment.id,
+                "user_id": installment.user_id,
+                "term": term,
+                "amount": installment.amount_per_term,
+                "status": "approved",
+                "proof_url": None,
+                "rejection_reason": None,
+                "created_at": None,
+            })
+
+    return result
+
+
 @router.get("/", response_model=list[InstallmentResponse])
 def get_all_installments(
     db: Session = Depends(get_db),
@@ -124,6 +163,7 @@ async def upload_installment_proof(
         raise HTTPException(status_code=400, detail="Proof already uploaded")
 
     installment.proof_url = await save_upload_image(file, "payment-proofs/installments")
+    installment.rejection_reason = None
 
     db.commit()
     db.refresh(installment)
@@ -152,6 +192,7 @@ async def admin_upload_installment_proof(
         raise HTTPException(status_code=400, detail="Installment is not payable")
 
     installment.proof_url = await save_upload_image(file, "payment-proofs/installments")
+    installment.rejection_reason = None
 
     db.commit()
     db.refresh(installment)
@@ -181,6 +222,19 @@ def approve_installment(
     if not installment.proof_url:
         raise HTTPException(status_code=400, detail="Proof required before approval")
 
+    term = installment.paid_terms + 1
+    amount = installment.amount_per_term
+    proof_url = installment.proof_url
+
+    db.add(InstallmentPaymentHistory(
+        installment_id=installment.id,
+        user_id=installment.user_id,
+        term=term,
+        amount=amount,
+        status="approved",
+        proof_url=proof_url,
+    ))
+
     # increment paid terms
     installment.paid_terms += 1
 
@@ -190,7 +244,22 @@ def approve_installment(
         installment.next_due_date = None
     elif installment.next_due_date:
         installment.next_due_date = add_months(installment.next_due_date)
+    term = installment.paid_terms + 1
+    amount = installment.amount_per_term
+    proof_url = installment.proof_url
+
+    db.add(InstallmentPaymentHistory(
+        installment_id=installment.id,
+        user_id=installment.user_id,
+        term=term,
+        amount=amount,
+        status="rejected",
+        proof_url=proof_url,
+        rejection_reason=reason,
+    ))
+
     installment.proof_url = None
+    installment.rejection_reason = None
 
     db.commit()
     db.refresh(installment)
@@ -225,6 +294,7 @@ def update_installment_due_date(
 @router.patch("/{installment_id}/reject")
 def reject_installment(
     installment_id: int,
+    payload: PaymentRejectRequest,
     db: Session = Depends(get_db),
     user=Depends(role_required(["admin", "super_admin"]))
 ):
@@ -238,9 +308,14 @@ def reject_installment(
     if not installment.proof_url:
         raise HTTPException(status_code=400, detail="No proof to reject")
 
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Reject reason is required")
+
     installment.proof_url = None
+    installment.rejection_reason = reason
 
     db.commit()
     db.refresh(installment)
 
-    return {"message": "Installment payment rejected"}
+    return {"message": "Installment payment rejected", "reason": reason}

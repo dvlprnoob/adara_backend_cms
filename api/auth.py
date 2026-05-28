@@ -126,10 +126,10 @@ def login(
             detail="Residents cannot access CMS"
         )
 
-    if payload.device == "mobile" and user.role.name != "resident":
+    if payload.device == "mobile" and user.role.name not in ["resident", "security"]:
         raise HTTPException(
             status_code=403,
-            detail="Admin cannot login from mobile"
+            detail="Only resident or security can login from mobile"
         )
 
     token_response = build_token_response(user, db)
