@@ -122,6 +122,7 @@ def get_my_installment_history(
                 "id": -(installment.id * 1000 + term),
                 "installment_id": installment.id,
                 "user_id": installment.user_id,
+                "payment_method_name": installment.payment_method_name,
                 "term": term,
                 "amount": installment.amount_per_term,
                 "status": "approved",

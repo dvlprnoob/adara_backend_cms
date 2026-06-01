@@ -21,6 +21,7 @@ class InstallmentResponse(BaseModel):
     id: int
     user_id: int
     payment_method_id: int
+    payment_method_name: str
     total_amount: Decimal
     total_terms: int
     paid_terms: int
@@ -42,6 +43,7 @@ class InstallmentPaymentHistoryResponse(BaseModel):
     id: int
     installment_id: int
     user_id: int
+    payment_method_name: str
     term: int
     amount: Decimal
     status: str

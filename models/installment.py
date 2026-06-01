@@ -84,3 +84,7 @@ class Installment(Base):
         if self.status == InstallmentStatus.done:
             return None
         return self.paid_terms + 1
+
+    @property
+    def payment_method_name(self):
+        return self.payment_method.name

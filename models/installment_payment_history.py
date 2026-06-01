@@ -1,4 +1,5 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from db.session import Base
@@ -16,3 +17,9 @@ class InstallmentPaymentHistory(Base):
     proof_url = Column(String, nullable=True)
     rejection_reason = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    installment = relationship("Installment")
+
+    @property
+    def payment_method_name(self):
+        return self.installment.payment_method.name
