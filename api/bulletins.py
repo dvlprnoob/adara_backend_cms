@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from api.deps import role_required
+from core.uploads import save_upload_image
 from db.session import get_db
 from models.bulletin import Bulletin
 from schemas.bulletin import BulletinCreate, BulletinResponse, BulletinUpdate
@@ -14,6 +15,14 @@ def get_bulletin_or_404(db: Session, bulletin_id: int) -> Bulletin:
     if not bulletin:
         raise HTTPException(status_code=404, detail="Bulletin not found")
     return bulletin
+
+
+@router.post("/photos/upload")
+async def upload_bulletin_photo(
+    file: UploadFile = File(...),
+    current_user=Depends(role_required(["admin", "super_admin"])),
+):
+    return {"url": await save_upload_image(file, "bulletins")}
 
 
 @router.post("/", response_model=BulletinResponse)

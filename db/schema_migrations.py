@@ -31,3 +31,23 @@ def ensure_payment_rejection_reason_columns(engine):
             columns = {column["name"] for column in inspector.get_columns(table)}
             if "rejection_reason" not in columns:
                 connection.execute(text(f"ALTER TABLE {table} ADD COLUMN rejection_reason VARCHAR"))
+
+
+def ensure_bulletin_photo_column(engine):
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("bulletins")}
+    if "photo" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE bulletins ADD COLUMN photo VARCHAR"))
+
+
+def ensure_service_description_column(engine):
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("services")}
+    if "description" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE services ADD COLUMN description TEXT"))

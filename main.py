@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from core.uploads import UPLOAD_ROOT
 from db.session import engine, Base, SessionLocal
-from db.schema_migrations import ensure_installment_due_date_column, ensure_payment_rejection_reason_columns, ensure_progress_warranty_columns
+from db.schema_migrations import ensure_bulletin_photo_column, ensure_installment_due_date_column, ensure_payment_rejection_reason_columns, ensure_progress_warranty_columns, ensure_service_description_column
 from db.base import *
 from db.seed import seed_roles, seed_super_admin
 from api import auth, users, banners, bulletins, roles, services, emergency_type, emergency_report, ipl, installment, payment_method, progress, chat, service_report
@@ -39,6 +39,8 @@ Base.metadata.create_all(bind=engine)
 ensure_installment_due_date_column(engine)
 ensure_payment_rejection_reason_columns(engine)
 ensure_progress_warranty_columns(engine)
+ensure_bulletin_photo_column(engine)
+ensure_service_description_column(engine)
 
 # Seed roles saat startup
 @app.on_event("startup")
